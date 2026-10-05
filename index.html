@@ -605,7 +605,10 @@ async function onMessage(topic, payload) {
   if (rel.startsWith('v/')) return; // 语音：网页版第二期再做
   if (payload.length === 0) {
     // 自己的在线状态被清掉了（上一条断掉的连接到时间了，服务器替它发了“离开”）：马上补回来
-    if (rel === 'm/' + S.myId) { if (!S.leaving && S.mqtt && S.mqtt.connected) publishPresence(); return; }
+    if (rel === 'm/' + S.myId) {
+      if (!S.leaving && S.mqtt && S.mqtt.connected) { publishPresence(); lentTo = ''; setTimeout(syncLend, 1500); }
+      return;
+    }
     if (rel.startsWith('m/')) { delete S.members[rel.slice(2)]; renderMembers(); renderTop(); }
     return;
   }
@@ -748,6 +751,8 @@ async function reconnect() {
     won.client.subscribe(roomTopics(S.base));
     await publishPresence(); pingBurst();
     reconnecting = false; renderStatus(); renderNet();
+    // 断线时房主把我当成离开过，借的会员清掉了：再借一次
+    lentTo = ''; setTimeout(syncLend, 1500);
     return;
   }
   reconnecting = false;
@@ -1068,6 +1073,8 @@ function renderMembers() {
   // 房主（安卓）来了或走了：“我的网易云”那页跟着变
   const host = !!hostMember();
   if (host !== NE.hostSeen) { NE.hostSeen = host; if (!$('libBox').hidden) openLibrary(); }
+  // 借会员：换了房主、房主重启、或者房主还没借到，都在这里补上
+  syncLend();
 }
 function renderResults(tracks) {
   const list = $('results'); list.textContent = '';
@@ -1266,7 +1273,31 @@ async function neLoadMine() {
   } catch (e) { NE.error = e.message; }
   finally { NE.busy = false; renderLib(); }
 }
-function neLogout() { store('lt.neAcct', ''); store('lt.neLib', ''); NE.view = 'home'; NE.list = null; renderLib(); }
+function neLogout() { store('lt.neAcct', ''); store('lt.neLib', ''); NE.view = 'home'; NE.list = null; syncLend(); renderLib(); }
+
+/*
+ * 用我的会员放歌：把自己的网易云账号借给房主的手机（装在只有它能拆的信封里），
+ * 我点的会员歌由它用我的账号取播放地址。房主只记在内存里，我离开房间、收回或换了房主就清掉；
+ * 断线重连时房主会把我当成离开过一次，所以连上后再借一次。
+ */
+function lendWanted() { return !!neAccount() && store('lt.neLend') !== '0'; }
+let lentTo = '', lending = false;
+async function syncLend() {
+  const host = hostMember();
+  if (!host || !host.pub || lending) return;
+  if (!lendWanted()) {
+    if (lentTo) { lentTo = ''; neRequest('unlend').catch(() => {}); }
+    return;
+  }
+  if (lentTo === host.pub) return;
+  lending = true;
+  try {
+    const res = await neRequest('lend');
+    if (res.code === 200) lentTo = host.pub;
+    else if (res.code === 301) { neLogout(); toast('网易云登录过期了，重新扫码登录一下'); }
+  } catch (e) { /* 过一会儿成员信息更新时再借 */ }
+  finally { lending = false; }
+}
 async function neLogin() {
   const loginId = NE.loginId = rand(6);
   NE.view = 'login'; NE.qr = null; NE.status = '正在获取二维码…'; renderLib();
@@ -1285,7 +1316,7 @@ async function neLogin() {
       else if (p.code === 803 && p.cookie) {
         store('lt.neAcct', JSON.stringify({ cookie: p.cookie, nickname: p.nickname || '' }));
         store('lt.nePub', '');
-        NE.view = 'home'; NE.qr = null; NE.loaded = true;
+        NE.view = 'home'; NE.qr = null; NE.loaded = true; lentTo = ''; syncLend();
         toast('登录成功' + (p.nickname ? '：' + p.nickname : ''));
         neLoadMine();
         return;
@@ -1351,7 +1382,7 @@ function renderLib() {
     if (!NE.qr) { const again = el('button', 'chip', '重新获取二维码'); again.onclick = neLogin; row.append(again); }
     const cancel = el('button', 'chip', '取消'); cancel.onclick = () => { NE.view = 'home'; NE.qr = null; NE.loginId = ''; renderLib(); };
     row.append(cancel); card.append(row);
-    card.append(el('div', 'note', '登录信息只保存在你这台手机上；读歌单时加密交给房主的手机代为请求，房间里别人看不到，用完就丢。'));
+    card.append(el('div', 'note', '登录信息只保存在你这台手机上；读歌单、放你的会员歌时加密交给房主的手机代为请求（只在它的内存里，你离开房间就清掉），房间里别人看不到。'));
     scroll.append(card); box.append(scroll); return;
   }
 
@@ -1387,6 +1418,13 @@ function renderLib() {
     const refresh = el('button', 'chip', NE.busy ? '刷新中…' : '刷新'); refresh.onclick = () => neLoadMine();
     const out = el('button', 'chip', '退出登录'); out.onclick = () => { if (confirm('退出网易云登录？（这台手机上不再保存登录信息）')) neLogout(); };
     head.append(refresh, out); box.append(head);
+    // 用我的会员放歌（默认开）
+    const lend = el('label', 'setrow'); lend.style.cssText = 'margin:0 12px;border:0;padding:4px 2px 8px';
+    const txt = el('span', null, '用我的会员放歌');
+    txt.append(el('small', null, '开着时，你点的会员歌用你的网易云账号取播放地址（房主的手机只在内存里暂存，你离开房间就清掉）'));
+    const sw = el('input', 'switch'); sw.type = 'checkbox'; sw.checked = lendWanted();
+    sw.onchange = () => { store('lt.neLend', sw.checked ? '1' : '0'); syncLend(); toast(sw.checked ? '你点的会员歌会用你的会员播放' : '已收回：不再用你的会员'); };
+    lend.append(txt, sw); box.append(lend);
     if (NE.error) box.append(el('div', 'libmsg', NE.error));
     scroll.append(playlistRow({ daily: true, id: 'daily', name: '每日推荐' }));
     const lists = readJson('lt.neLib') || [];
