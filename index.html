@@ -1,0 +1,1009 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="一起听看">
+<meta name="theme-color" content="#1D171C">
+<link rel="apple-touch-icon" href="icon.png">
+<link rel="manifest" href="manifest.json">
+<title>一起听看</title>
+<style>
+  /* 和安卓版房间一样的可可夜色：底色、卡片、玫瑰色强调 */
+  :root {
+    --bg: #1D171C; --surface: #292127; --surface-2: #352B33; --line: #41353E;
+    --fg: #F3E9E8; --muted: #B9A6AA; --rose: #E9A5B2; --rose-deep: #B46B7A; --peach: #D1A191;
+    --heart: #F05A67; --ok: #8FD3A8;
+    --font: -apple-system, "PingFang SC", "Noto Sans SC", "Microsoft YaHei", system-ui, sans-serif;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; margin: 0; background: var(--bg); color: var(--fg); font-family: var(--font); }
+  body { overscroll-behavior: none; }
+  button { font: inherit; color: inherit; border: 0; background: none; cursor: pointer; }
+  input { font: inherit; color: var(--fg); }
+  [hidden] { display: none !important; }
+
+  /* ---- 加入页 ---- */
+  #join { min-height: 100%; display: flex; flex-direction: column; justify-content: center; gap: 18px;
+    padding: calc(env(safe-area-inset-top) + 32px) 22px calc(env(safe-area-inset-bottom) + 32px);
+    max-width: 460px; margin: 0 auto; }
+  #join h1 { margin: 0; font-size: 40px; letter-spacing: 2px; }
+  #join h1 span { color: var(--rose); }
+  #join .sub { margin: -8px 0 6px; color: var(--muted); }
+  .field { display: flex; flex-direction: column; gap: 6px; }
+  .field label { font-size: 13px; color: var(--muted); }
+  .field input { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 14px 16px; font-size: 17px; outline: none; }
+  .field input:focus { border-color: var(--rose); }
+  #code { letter-spacing: 3px; text-transform: uppercase; font-size: 20px; }
+  .primary { background: linear-gradient(120deg, var(--rose-deep), var(--peach)); color: #fff; border-radius: 18px; padding: 15px; font-size: 17px; font-weight: 600; }
+  .primary:disabled { opacity: .5; }
+  .tip { font-size: 13px; color: var(--muted); line-height: 1.6; background: var(--surface); border-radius: 16px; padding: 12px 14px; }
+
+  /* ---- 房间 ---- */
+  #room { height: 100%; display: flex; flex-direction: column; position: relative; overflow: hidden; }
+  #backdrop { position: absolute; inset: 0; background-size: cover; background-position: center; filter: blur(30px) saturate(1.2); opacity: .55; transform: scale(1.2); z-index: 0; }
+  #backdrop::after { content: ""; position: absolute; inset: 0; background: linear-gradient(to bottom, rgba(29,23,28,.35), rgba(29,23,28,.85) 55%, var(--bg)); }
+  #room > *:not(#backdrop) { position: relative; z-index: 1; }
+  .topbar { display: flex; align-items: center; gap: 10px; padding: calc(env(safe-area-inset-top) + 10px) 16px 6px; }
+  .topbar .titles { flex: 1; min-width: 0; }
+  .topbar .t1 { font-weight: 700; font-size: 17px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .topbar .t2 { font-size: 12px; color: var(--muted); }
+  .iconbtn { width: 40px; height: 40px; border-radius: 20px; display: grid; place-items: center; background: rgba(255,255,255,.06); font-size: 18px; }
+  .hero { display: flex; gap: 14px; align-items: center; padding: 8px 20px 4px; }
+  .cover { width: 92px; height: 92px; border-radius: 18px; flex: none; background: linear-gradient(135deg, var(--rose-deep), var(--peach)); background-size: cover; background-position: center; display: grid; place-items: center; font-size: 34px; box-shadow: 0 10px 30px rgba(180,107,122,.35); }
+  .meta { min-width: 0; flex: 1; }
+  .song { font-size: 21px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .artist { font-size: 14px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
+  .tags { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; font-size: 12px; }
+  .tag { padding: 3px 9px; border-radius: 999px; background: rgba(255,255,255,.08); color: var(--muted); }
+  .tag.src { background: var(--rose-deep); color: #fff; }
+  #status { margin: 6px 20px 0; font-size: 13px; color: var(--rose); min-height: 18px; }
+  #tapToPlay { margin: 8px 20px 0; }
+  .lyrics { height: 84px; overflow: hidden; text-align: center; margin: 6px 20px 0; mask-image: linear-gradient(transparent, #000 25%, #000 75%, transparent); -webkit-mask-image: linear-gradient(transparent, #000 25%, #000 75%, transparent); }
+  .lyrics .line { font-size: 14px; color: var(--muted); line-height: 1.5; min-height: 21px; }
+  .lyrics .line.now { color: var(--fg); font-size: 16px; font-weight: 600; }
+  .lyrics .tr { font-size: 12px; color: var(--rose); min-height: 18px; }
+  .progress { padding: 8px 24px 0; }
+  .bar { position: relative; height: 28px; touch-action: none; }
+  .bar .track { position: absolute; left: 0; right: 0; top: 12px; height: 4px; border-radius: 2px; background: rgba(255,255,255,.15); }
+  .bar .fill { position: absolute; left: 0; top: 12px; height: 4px; border-radius: 2px; background: var(--rose); }
+  .bar .knob { position: absolute; top: 6px; width: 16px; height: 16px; margin-left: -8px; border-radius: 8px; background: var(--rose); box-shadow: 0 0 0 4px rgba(233,165,178,.2); }
+  .times { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .controls { display: flex; justify-content: center; align-items: center; gap: 34px; padding: 4px 0 10px; }
+  .controls .play { width: 64px; height: 64px; border-radius: 32px; background: linear-gradient(135deg, var(--rose-deep), var(--peach)); color: #fff; font-size: 26px; display: grid; place-items: center; }
+  .controls .skip { font-size: 26px; color: var(--fg); }
+  .heartbtn { color: var(--heart); }
+
+  .panel { flex: 1; min-height: 0; display: flex; flex-direction: column; background: var(--surface); border-radius: 26px 26px 0 0; padding-bottom: env(safe-area-inset-bottom); }
+  .tabs { display: flex; gap: 8px; padding: 12px 12px 8px; }
+  .tabs button { flex: 1; padding: 10px 0; border-radius: 16px; background: rgba(255,255,255,.05); color: var(--muted); font-size: 14px; position: relative; }
+  .tabs button.on { background: linear-gradient(120deg, var(--rose-deep), var(--peach)); color: #fff; }
+  .tabs .dot { position: absolute; top: 6px; right: 12px; width: 8px; height: 8px; border-radius: 4px; background: var(--heart); }
+  .page { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+  .scroll { flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 4px 12px 8px; }
+  .msg { display: flex; flex-direction: column; margin: 8px 4px; max-width: 80%; }
+  .msg .who { font-size: 12px; color: var(--muted); margin-bottom: 3px; }
+  .msg .bubble { background: var(--surface-2); padding: 9px 13px; border-radius: 16px; line-height: 1.45; word-break: break-word; }
+  .msg.mine { align-self: flex-end; align-items: flex-end; margin-left: auto; }
+  .msg.mine .bubble { background: linear-gradient(120deg, var(--rose-deep), var(--peach)); color: #fff; }
+  .sys { text-align: center; font-size: 12px; color: var(--muted); margin: 8px auto; background: rgba(255,255,255,.05); border-radius: 999px; padding: 4px 12px; width: fit-content; max-width: 92%; }
+  .inputrow { display: flex; gap: 8px; padding: 6px 12px 10px; }
+  .inputrow input { flex: 1; min-width: 0; background: var(--surface-2); border: 0; border-radius: 22px; padding: 12px 16px; outline: none; font-size: 16px; }
+  .inputrow button { padding: 0 16px; border-radius: 22px; background: linear-gradient(120deg, var(--rose-deep), var(--peach)); color: #fff; }
+  .srcpick { display: flex; gap: 8px; padding: 2px 12px 0; }
+  .srcpick button { padding: 6px 12px; border-radius: 999px; background: rgba(255,255,255,.06); color: var(--muted); font-size: 13px; }
+  .srcpick button.on { background: var(--rose-deep); color: #fff; }
+  .row { display: flex; align-items: center; gap: 10px; padding: 9px 8px; border-radius: 14px; }
+  .row.now { background: rgba(233,165,178,.12); }
+  .row .thumb { width: 42px; height: 42px; border-radius: 10px; flex: none; background: var(--surface-2); background-size: cover; background-position: center; }
+  .row .info { flex: 1; min-width: 0; }
+  .row .a { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .row .b { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .row .act { padding: 7px 11px; border-radius: 12px; background: rgba(255,255,255,.07); font-size: 13px; flex: none; }
+  .row .act.main { background: var(--rose-deep); color: #fff; }
+  .empty { color: var(--muted); text-align: center; padding: 28px 12px; font-size: 14px; line-height: 1.6; }
+  .avatar { width: 40px; height: 40px; border-radius: 20px; flex: none; display: grid; place-items: center; font-weight: 700; color: #fff; background: linear-gradient(135deg, var(--rose-deep), var(--peach)); background-size: cover; background-position: center; }
+  .badge { font-size: 11px; padding: 2px 7px; border-radius: 999px; background: rgba(255,255,255,.08); color: var(--muted); margin-left: 6px; }
+  /* 顶栏头像 */
+  .avs { display: flex; align-items: center; }
+  .avs .avatar { width: 30px; height: 30px; font-size: 13px; border: 2px solid var(--bg); margin-left: -8px; }
+  .avs .avatar:first-child { margin-left: 0; }
+  /* 播放键两边：播放模式、睡眠定时 */
+  .controls .side { font-size: 12px; color: var(--muted); width: 60px; text-align: center; line-height: 1.3; white-space: nowrap; }
+  .controls .side.on { color: var(--rose); }
+  .lyrics { cursor: pointer; }
+  /* 整页歌词 */
+  #lyricsFull { position: fixed; inset: 0; z-index: 30; background: #140f13; display: flex; flex-direction: column;
+    padding: calc(env(safe-area-inset-top) + 10px) 0 env(safe-area-inset-bottom); }
+  .lf-top { display: flex; align-items: center; gap: 10px; padding: 0 16px 8px; }
+  .lf-top .ttl { flex: 1; min-width: 0; text-align: center; }
+  .lf-top .ttl div:first-child { font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .lf-top .ttl div:last-child { font-size: 12px; color: var(--muted); }
+  .lf-top .pill { padding: 6px 12px; border-radius: 999px; background: rgba(255,255,255,.08); font-size: 13px; color: var(--muted); }
+  .lf-top .pill.on { background: var(--rose-deep); color: #fff; }
+  .lf-scroll { flex: 1; overflow-y: auto; padding: 40vh 24px; text-align: center; scroll-behavior: smooth;
+    mask-image: linear-gradient(transparent, #000 18%, #000 82%, transparent); -webkit-mask-image: linear-gradient(transparent, #000 18%, #000 82%, transparent); }
+  .lf-line { padding: 9px 0; color: var(--muted); font-size: 18px; line-height: 1.45; transition: color .25s, transform .25s; }
+  .lf-line .tr { display: block; font-size: 14px; margin-top: 2px; color: rgba(233,165,178,.75); }
+  .lf-line.now { color: var(--fg); font-weight: 700; transform: scale(1.06); }
+  .lf-line.now .tr { color: var(--rose); }
+  .machine { font-size: 11px; color: var(--muted); border: 1px solid var(--line); border-radius: 6px; padding: 1px 5px; margin-left: 6px; }
+  /* 列表工具条、撤销 */
+  .toolbar { display: flex; gap: 8px; padding: 2px 12px 4px; flex-wrap: wrap; align-items: center; }
+  .toolbar .chip { padding: 6px 12px; border-radius: 999px; background: rgba(255,255,255,.06); color: var(--muted); font-size: 13px; }
+  .toolbar .chip.on { background: var(--rose-deep); color: #fff; }
+  .toolbar .grow { flex: 1; font-size: 13px; color: var(--muted); }
+  .toolbar .danger { color: #F2A3A3; }
+  .row .mini { width: 34px; height: 34px; border-radius: 10px; background: rgba(255,255,255,.06); font-size: 14px; flex: none; }
+  .undo { display: flex; align-items: center; gap: 10px; margin: 4px 12px 8px; padding: 10px 14px; border-radius: 14px; background: var(--fg); color: var(--bg); font-size: 14px; }
+  .undo span { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .undo button { color: var(--rose-deep); font-weight: 700; }
+  .chips { display: flex; gap: 8px; flex-wrap: wrap; padding: 0 12px 6px; }
+  .chips button { padding: 5px 11px; border-radius: 999px; background: rgba(255,255,255,.06); color: var(--muted); font-size: 13px; }
+  /* 底部弹出的选项 */
+  .sheet-bg { position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 35; display: flex; align-items: flex-end; }
+  .sheet { width: 100%; background: var(--surface); border-radius: 22px 22px 0 0; padding: 16px 16px calc(env(safe-area-inset-bottom) + 16px); }
+  .sheet h3 { margin: 0 0 4px; font-size: 17px; }
+  .sheet p { margin: 0 0 12px; color: var(--muted); font-size: 13px; }
+  .sheet .opts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+  .sheet .opts button { padding: 13px 0; border-radius: 14px; background: rgba(255,255,255,.06); }
+  .sheet .opts button.wide { grid-column: span 3; }
+  .sheet .opts button.warn { color: #F2A3A3; }
+  #toast { position: fixed; left: 50%; bottom: calc(env(safe-area-inset-bottom) + 90px); transform: translateX(-50%); background: rgba(0,0,0,.8); color: #fff; padding: 10px 16px; border-radius: 14px; font-size: 14px; z-index: 50; max-width: 86%; text-align: center; transition: opacity .3s; }
+  .floating-heart { position: fixed; bottom: 40%; font-size: 30px; pointer-events: none; animation: rise 2.4s ease-out forwards; z-index: 40; }
+  @keyframes rise { from { transform: translateY(0) scale(.8); opacity: 1; } to { transform: translateY(-260px) scale(1.3); opacity: 0; } }
+  @media (prefers-reduced-motion: reduce) { .floating-heart { animation-duration: .01s; } }
+</style>
+</head>
+<body>
+
+<div id="join">
+  <h1>一起<span>听</span>看</h1>
+  <p class="sub">网页版 · 进入安卓那边开的房间，一起听歌、聊天</p>
+  <div class="field">
+    <label for="nick">你的名字（TA 看到的）</label>
+    <input id="nick" maxlength="20" placeholder="比如：小花" autocomplete="nickname">
+  </div>
+  <div class="field">
+    <label for="code">房间码</label>
+    <input id="code" maxlength="9" placeholder="ABCD-2345" autocomplete="off" autocapitalize="characters" inputmode="text">
+  </div>
+  <button id="joinBtn" class="primary">进入房间</button>
+  <div class="tip">
+    在 iPhone 上：用 Safari 打开，点下面的「分享」→「添加到主屏幕」，以后就能像 App 一样从桌面打开。<br>
+    点歌、歌词由房间里的安卓手机代为搜索和获取；锁屏后同步会暂停，回来自动对齐。
+  </div>
+</div>
+
+<div id="room" hidden>
+  <div id="backdrop"></div>
+  <div class="topbar">
+    <button class="iconbtn" id="leaveBtn" aria-label="离开房间">✕</button>
+    <div class="titles">
+      <div class="t1" id="roomTitle">一起听</div>
+      <div class="t2" id="roomSub"></div>
+    </div>
+    <div class="avs" id="avs"></div>
+    <button class="iconbtn heartbtn" id="heartBtn" aria-label="飘心">♥</button>
+  </div>
+  <div class="hero">
+    <div class="cover" id="cover">♪</div>
+    <div class="meta">
+      <div class="song" id="song">还没有歌</div>
+      <div class="artist" id="artist">去「点歌」加几首吧</div>
+      <div class="tags" id="tags"></div>
+    </div>
+  </div>
+  <div id="status"></div>
+  <button id="tapToPlay" class="primary" hidden>点一下开始播放</button>
+  <div class="lyrics" id="lyrics" role="button" aria-label="看整页歌词"></div>
+  <div class="progress">
+    <div class="bar" id="bar"><div class="track"></div><div class="fill" id="fill"></div><div class="knob" id="knob"></div></div>
+    <div class="times"><span id="pos">0:00</span><span id="dur">0:00</span></div>
+  </div>
+  <div class="controls">
+    <button class="side" id="modeBtn" aria-label="播放模式">🔁<br>列表循环</button>
+    <button class="skip" id="prevBtn" aria-label="上一首">⏮</button>
+    <button class="play" id="playBtn" aria-label="播放/暂停">▶</button>
+    <button class="skip" id="nextBtn" aria-label="下一首">⏭</button>
+    <button class="side" id="sleepBtn" aria-label="睡眠定时">☾<br>定时</button>
+  </div>
+  <div class="panel">
+    <div class="tabs" role="tablist">
+      <button data-tab="chat" class="on">聊天<span class="dot" id="chatDot" hidden></span></button>
+      <button data-tab="search">点歌</button>
+      <button data-tab="queue">列表</button>
+      <button data-tab="members">成员</button>
+    </div>
+    <div class="page" data-page="chat">
+      <div class="scroll" id="chatList"></div>
+      <div class="inputrow">
+        <input id="chatInput" maxlength="200" placeholder="说点什么…" enterkeyhint="send">
+        <button id="sendBtn">发送</button>
+      </div>
+    </div>
+    <div class="page" data-page="search" hidden>
+      <div class="srcpick" id="srcPick">
+        <button data-src="netease" class="on">网易云</button>
+        <button data-src="qq">QQ 音乐</button>
+      </div>
+      <div class="inputrow">
+        <input id="searchInput" maxlength="60" placeholder="歌名 / 歌手" enterkeyhint="search">
+        <button id="searchBtn">搜索</button>
+      </div>
+      <div class="chips" id="recent"></div>
+      <div class="scroll" id="results"><div class="empty">输入歌名搜索。<br>搜歌由房间里的安卓手机代为完成，所以 TA 要在房间里。</div></div>
+    </div>
+    <div class="page" data-page="queue" hidden>
+      <div class="toolbar">
+        <span class="grow" id="queueCount">共 0 首</span>
+        <button class="chip" id="turnsBtn">轮流点歌</button>
+        <button class="chip danger" id="clearBtn">清空</button>
+      </div>
+      <div class="scroll" id="queueList"></div>
+      <div class="undo" id="undoBar" hidden><span id="undoText"></span><button id="undoBtn">撤销</button></div>
+    </div>
+    <div class="page" data-page="members" hidden>
+      <div class="scroll" id="memberList"></div>
+    </div>
+  </div>
+</div>
+
+<!-- 整页歌词 -->
+<div id="lyricsFull" hidden>
+  <div class="lf-top">
+    <button class="iconbtn" id="lfClose" aria-label="收起歌词">⌄</button>
+    <div class="ttl"><div id="lfTitle"></div><div id="lfArtist"></div></div>
+    <button class="pill" id="lfTr">译</button>
+  </div>
+  <div class="lf-scroll" id="lfScroll"></div>
+</div>
+
+<!-- 睡眠定时 -->
+<div class="sheet-bg" id="sleepSheet" hidden>
+  <div class="sheet">
+    <h3>睡眠定时</h3>
+    <p id="sleepNote">到点房间里大家一起停，最后会慢慢变小声</p>
+    <div class="opts">
+      <button data-min="15">15 分钟</button><button data-min="30">30 分钟</button><button data-min="45">45 分钟</button>
+      <button data-min="60">60 分钟</button><button data-min="90">90 分钟</button><button data-min="-1">播完这首</button>
+      <button class="wide warn" data-min="0" id="sleepCancel">取消定时</button>
+      <button class="wide" id="sleepClose">关闭</button>
+    </div>
+  </div>
+</div>
+
+<audio id="player" preload="auto" playsinline></audio>
+<div id="toast" hidden></div>
+
+<script>
+'use strict';
+/* ==========================================================================
+ * 一起听看 · 网页版
+ * 和安卓版说同一套房间协议：主题和密钥由房间码派生（PBKDF2），消息用 AES-GCM 加密，
+ * 走公共 MQTT 服务器（WebSocket）。网页版只当成员，不当房主（取不了网易云 / QQ 的播放地址）；
+ * 搜歌、歌词请房主（安卓）代为完成。
+ * ========================================================================== */
+
+const te = new TextEncoder(), td = new TextDecoder();
+const $ = id => document.getElementById(id);
+const ALPHABET = 'abcdefghijkmnpqrstuvwxyz23456789';
+const BROKERS = ['wss://broker.emqx.io:8084/mqtt', 'wss://broker.hivemq.com:8884/mqtt'];
+
+function rand(n) { const b = crypto.getRandomValues(new Uint8Array(n)); return Array.from(b, x => ALPHABET[x % 32]).join(''); }
+function hex(b) { return Array.from(b, x => x.toString(16).padStart(2, '0')).join(''); }
+function concat(a, b) { const out = new Uint8Array(a.length + b.length); out.set(a); out.set(b, a.length); return out; }
+function normalizeCode(code) { return (code || '').toUpperCase().replace(/[^A-Z0-9]/g, ''); }
+function displayCode(code) { const n = normalizeCode(code); return n.length === 8 ? n.slice(0, 4) + '-' + n.slice(4) : n; }
+function fmt(ms) { const s = Math.max(0, Math.floor(ms / 1000)); const h = Math.floor(s / 3600), m = Math.floor(s / 60) % 60, ss = String(s % 60).padStart(2, '0'); return h ? `${h}:${String(m).padStart(2, '0')}:${ss}` : `${m}:${ss}`; }
+function https(u) { return typeof u === 'string' ? u.replace(/^http:\/\//, 'https://') : u; }
+function safeImg(u) { u = https(u); return typeof u === 'string' && /^https:\/\//.test(u) ? u : ''; }
+function store(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) { return null; } }
+const now = () => performance.now();
+
+let toastTimer;
+function toast(text) { const t = $('toast'); t.textContent = text; t.hidden = false; t.style.opacity = 1; clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.style.opacity = 0; setTimeout(() => t.hidden = true, 300); }, 2600); }
+
+/* ---------------- 加密：和安卓版 RoomCrypto 一样 ---------------- */
+async function pbkdf2(password, salt, bits) {
+  const key = await crypto.subtle.importKey('raw', te.encode(password), 'PBKDF2', false, ['deriveBits']);
+  return new Uint8Array(await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt: te.encode(salt), iterations: 20000 }, key, bits));
+}
+async function roomCrypto(code) {
+  const norm = normalizeCode(code);
+  const topicId = hex(await pbkdf2(norm, 'ltapp-topic-v1', 128));
+  const key = await crypto.subtle.importKey('raw', await pbkdf2(norm, 'ltapp-key-v1', 256), 'AES-GCM', false, ['encrypt', 'decrypt']);
+  return {
+    topicId,
+    async encrypt(plain) {
+      const iv = crypto.getRandomValues(new Uint8Array(12));
+      return concat(iv, new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, plain)));
+    },
+    async decrypt(data) {
+      if (data.length < 13) return null;
+      try { return new Uint8Array(await crypto.subtle.decrypt({ name: 'AES-GCM', iv: data.slice(0, 12) }, key, data.slice(12))); }
+      catch (e) { return null; }
+    },
+  };
+}
+/* 大于 2KB 的消息安卓那边会 gzip：收的时候解开，发的时候也压一下 */
+async function unpack(b) {
+  if (b.length >= 2 && b[0] === 0x1f && b[1] === 0x8b) {
+    if (typeof DecompressionStream === 'undefined') return null;
+    return new Uint8Array(await new Response(new Blob([b]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer());
+  }
+  return b;
+}
+async function pack(b) {
+  if (b.length < 2048 || typeof CompressionStream === 'undefined') return b;
+  const gz = new Uint8Array(await new Response(new Blob([b]).stream().pipeThrough(new CompressionStream('gzip'))).arrayBuffer());
+  return gz.length < b.length ? gz : b;
+}
+
+/* ---------------- 极简 MQTT 3.1.1 客户端（WebSocket） ---------------- */
+class Mqtt {
+  constructor(url, clientId, opts) { this.url = url; this.clientId = clientId; this.opts = opts || {}; this.pid = 1; this.buf = new Uint8Array(0); this.closed = false; }
+  static str(s) { const b = te.encode(s); const out = new Uint8Array(2 + b.length); out[0] = b.length >> 8; out[1] = b.length & 255; out.set(b, 2); return out; }
+  static bin(b) { const out = new Uint8Array(2 + b.length); out[0] = b.length >> 8; out[1] = b.length & 255; out.set(b, 2); return out; }
+  static packet(type, flags, body) {
+    const len = []; let n = body.length;
+    do { let d = n % 128; n = Math.floor(n / 128); if (n > 0) d |= 128; len.push(d); } while (n > 0);
+    const out = new Uint8Array(1 + len.length + body.length); out[0] = (type << 4) | flags; out.set(len, 1); out.set(body, 1 + len.length); return out;
+  }
+  connect() {
+    return new Promise((resolve, reject) => {
+      let ws;
+      try { ws = new WebSocket(this.url, ['mqtt']); } catch (e) { reject(e); return; }
+      this.ws = ws; ws.binaryType = 'arraybuffer';
+      const timer = setTimeout(() => { reject(new Error('连接超时')); try { ws.close(); } catch (e) {} }, 10000);
+      ws.onopen = () => {
+        const will = this.opts.will;
+        let flags = 0x02; // clean session
+        const parts = [Mqtt.str('MQTT'), new Uint8Array([4, 0, 0, 30])];
+        const payload = [Mqtt.str(this.clientId)];
+        if (will) { flags |= 0x04 | (1 << 3) | (will.retain ? 0x20 : 0); payload.push(Mqtt.str(will.topic), Mqtt.bin(will.payload)); }
+        parts[1][1] = flags;
+        const body = [...parts, ...payload].reduce(concat, new Uint8Array(0));
+        ws.send(Mqtt.packet(1, 0, body));
+      };
+      ws.onmessage = ev => this.onData(new Uint8Array(ev.data), () => { clearTimeout(timer); resolve(); });
+      ws.onerror = () => {};
+      ws.onclose = () => {
+        clearTimeout(timer); clearInterval(this.pinger);
+        if (!this.connected) reject(new Error('连不上服务器'));
+        this.connected = false;
+        if (!this.closed && this.opts.onClose) this.opts.onClose();
+      };
+    });
+  }
+  onData(chunk, onConnack) {
+    this.buf = concat(this.buf, chunk);
+    while (this.buf.length >= 2) {
+      let mult = 1, len = 0, i = 1, byte;
+      do { if (i >= this.buf.length) return; byte = this.buf[i++]; len += (byte & 127) * mult; mult *= 128; } while (byte & 128);
+      if (this.buf.length < i + len) return;
+      const head = this.buf[0], body = this.buf.slice(i, i + len);
+      this.buf = this.buf.slice(i + len);
+      const type = head >> 4;
+      if (type === 2) { // CONNACK
+        if (body[1] !== 0) { try { this.ws.close(); } catch (e) {} return; }
+        this.connected = true;
+        this.pinger = setInterval(() => this.send(new Uint8Array([0xC0, 0])), 20000);
+        onConnack();
+      } else if (type === 3) { // PUBLISH
+        const qos = (head >> 1) & 3, retain = head & 1;
+        const tl = (body[0] << 8) | body[1];
+        const topic = td.decode(body.slice(2, 2 + tl));
+        let p = 2 + tl;
+        if (qos > 0) { const id = (body[p] << 8) | body[p + 1]; p += 2; this.send(Mqtt.packet(4, 0, new Uint8Array([id >> 8, id & 255]))); }
+        if (this.opts.onMessage) this.opts.onMessage(topic, body.slice(p), !!retain);
+      }
+    }
+  }
+  send(b) { if (this.ws && this.ws.readyState === 1) this.ws.send(b); }
+  nextId() { this.pid = this.pid % 65000 + 1; return this.pid; }
+  subscribe(topics, qos = 1) {
+    const id = this.nextId();
+    const body = [new Uint8Array([id >> 8, id & 255]), ...topics.flatMap(t => [Mqtt.str(t), new Uint8Array([qos])])].reduce(concat, new Uint8Array(0));
+    this.send(Mqtt.packet(8, 2, body));
+  }
+  publish(topic, payload, { qos = 0, retain = false } = {}) {
+    const parts = [Mqtt.str(topic)];
+    if (qos > 0) { const id = this.nextId(); parts.push(new Uint8Array([id >> 8, id & 255])); }
+    parts.push(payload);
+    this.send(Mqtt.packet(3, (qos << 1) | (retain ? 1 : 0), parts.reduce(concat, new Uint8Array(0))));
+  }
+  close() { this.closed = true; clearInterval(this.pinger); try { this.send(new Uint8Array([0xE0, 0])); this.ws.close(); } catch (e) {} }
+}
+
+/* ---------------- 房间 ---------------- */
+const S = {
+  code: '', crypto: null, base: '', mqtt: null, broker: '',
+  clientId: store('lt.clientId') || (() => { const id = rand(10); store('lt.clientId', id); return id; })(),
+  myId: '', name: '', joinedAt: 0,
+  playback: null, queue: [], members: {}, chat: [],
+  clock: { hostId: '', offset: null, samples: [] },
+  lyrics: {}, lyricsKey: '', searchId: '', source: 'netease', tab: 'chat',
+  unlocked: false, loadedKey: '', loadedUrl: '', lastSeek: 0, leaving: false,
+};
+
+async function sendEncrypted(topic, obj, opts) {
+  const plain = await pack(te.encode(JSON.stringify(obj)));
+  S.mqtt.publish(topic, await S.crypto.encrypt(plain), opts);
+}
+function bus(msg) { return sendEncrypted(S.base + '/bus', Object.assign({ from: S.myId, name: S.name, ts: Date.now() }, msg), { qos: 1 }); }
+function cmd(name, extra) { return bus(Object.assign({ type: 'cmd', cmd: name }, extra || {})); }
+function me() { return { id: S.myId, name: S.name, joinedAt: S.joinedAt, sources: [], voiceVersion: 3, web: true }; }
+async function publishPresence() { await sendEncrypted(S.base + '/m/' + S.myId, me(), { qos: 1, retain: true }); }
+
+/* 每台手机按“比最快那一次往返”估计和房主的时钟差（和安卓版一样） */
+// 安卓那边的时间字段是整数（毫秒），带小数会解析失败
+function ping() { bus({ type: 'ping', t0: Math.round(now()) }); }
+function pingBurst() { for (let i = 0; i < 5; i++) setTimeout(ping, i * 300); }
+function hostNow() { const pb = S.playback; if (!pb || S.clock.hostId !== pb.hostId || S.clock.offset === null) return null; return now() + S.clock.offset; }
+function expected(pb) { if (pb.paused || pb.loading) return pb.positionMs || 0; const h = hostNow(); if (h === null) return null; return (pb.positionMs || 0) + Math.max(0, h - (pb.atHostMs || 0)); }
+function waiting(pb) { if (pb.paused || pb.loading) return false; const h = hostNow(); return h !== null && h < (pb.atHostMs || 0); }
+
+async function onMessage(topic, payload) {
+  const rel = topic.slice(S.base.length + 1);
+  if (rel.startsWith('v/')) return; // 语音：网页版第二期再做
+  if (payload.length === 0) { if (rel.startsWith('m/')) { delete S.members[rel.slice(2)]; renderMembers(); renderTop(); } return; }
+  const plain = await S.crypto.decrypt(payload);
+  if (!plain) return;
+  const bytes = await unpack(plain);
+  if (!bytes) return;
+  let obj; try { obj = JSON.parse(td.decode(bytes)); } catch (e) { return; }
+  if (rel === 'state') onState(obj);
+  else if (rel === 'queue') { S.queue = obj.items || []; renderQueue(); }
+  else if (rel === 'bus') onBus(obj);
+  else if (rel.startsWith('m/')) { if (obj.id === rel.slice(2)) { S.members[obj.id] = obj; renderMembers(); renderTop(); } }
+  else if (rel === 'bg') { if (obj.image) $('backdrop').style.backgroundImage = `url(data:image/jpeg;base64,${obj.image})`; }
+}
+
+// 安卓那边等于默认值的字段不发：暂停时没有 paused 字段（默认就是暂停），所以这里先补上默认值
+const PLAYBACK_DEFAULTS = { kind: 'music', paused: true, mode: 'list' };
+function onState(raw) {
+  const pb = Object.assign({}, PLAYBACK_DEFAULTS, raw);
+  const old = S.playback;
+  S.playback = pb;
+  if (!old || old.hostId !== pb.hostId) { S.clock = { hostId: pb.hostId, offset: null, samples: [] }; pingBurst(); }
+  if (!old || (old.track && old.track.key) !== (pb.track && pb.track.key)) renderSong();
+  if (pb.track && pb.track.key && !S.lyrics[pb.track.key] && S.lyricsKey !== pb.track.key) {
+    S.lyricsKey = pb.track.key;
+    bus({ type: 'needLyrics', tracks: [pb.track] });
+  }
+  renderStatus(); renderQueue(); renderPlayButton(); renderMode(); renderSleep();
+  if (!old || (old.track && old.track.key) !== (pb.track && pb.track.key)) updateMediaSession();
+}
+
+function onBus(m) {
+  switch (m.type) {
+    case 'chat': addChat({ id: m.id, from: m.from, name: m.name, text: m.text || '', ts: m.ts }); break;
+    case 'sys': addChat({ id: m.id, sys: true, text: m.text || '', ts: m.ts }); break;
+    case 'pong':
+      if (m.to === S.myId && S.playback && m.from === S.playback.hostId) {
+        const t2 = now(), rtt = t2 - m.t0;
+        if (rtt < 0 || rtt > 10000) return;
+        if (S.clock.hostId !== m.from) S.clock = { hostId: m.from, offset: null, samples: [] };
+        S.clock.samples.push({ rtt, offset: m.t1 + rtt / 2 - t2 });
+        if (S.clock.samples.length > 10) S.clock.samples.shift();
+        S.clock.offset = S.clock.samples.reduce((a, b) => (b.rtt < a.rtt ? b : a)).offset;
+      }
+      break;
+    case 'react': if (m.from !== S.myId) floatHeart(m.text || '❤️'); break;
+    case 'searchResult': if (m.to === S.myId && m.id === S.searchId) renderResults(m.tracks || []); break;
+    case 'lyrics':
+      if (m.to === S.myId && m.key) { try { S.lyrics[m.key] = parseLyrics(JSON.parse(m.text || '{}')); } catch (e) {} }
+      break;
+  }
+}
+
+/* ---------------- 加入 / 离开 ---------------- */
+/* 不知道房间在哪台服务器上：同时问几台，先找到房间的那台就用它（它的连接直接留下来用） */
+async function findRoom(base) {
+  return new Promise(resolve => {
+    let done = false; const tried = [];
+    const finish = winner => {
+      if (done) return; done = true;
+      tried.forEach(t => { if (t !== winner) try { t.client.close(); } catch (e) {} });
+      resolve(winner);
+    };
+    let pending = BROKERS.length;
+    BROKERS.forEach(url => {
+      const entry = { url, buffer: [], client: null };
+      const client = new Mqtt(url, 'ltw-' + S.myId + '-' + rand(3), {
+        will: { topic: base + '/m/' + S.myId, payload: new Uint8Array(0), retain: true },
+        onMessage: async (topic, payload) => {
+          if (entry.handler) return entry.handler(topic, payload);
+          entry.buffer.push([topic, payload]);
+          if (!done && topic.startsWith(base + '/m/') && payload.length && await S.crypto.decrypt(payload)) finish(entry);
+        },
+        onClose: () => entry.onClose && entry.onClose(),
+      });
+      entry.client = client; tried.push(entry);
+      client.connect().then(() => {
+        client.subscribe([base + '/state', base + '/queue', base + '/bus', base + '/m/+', base + '/bg']);
+        setTimeout(() => { if (--pending === 0 && !done) finish(tried.find(t => t.client.connected) || null); }, 4000);
+      }).catch(() => { if (--pending === 0 && !done) finish(tried.find(t => t.client.connected) || null); });
+    });
+    setTimeout(() => finish(tried.find(t => t.client.connected) || null), 12000);
+  });
+}
+
+async function join() {
+  const name = $('nick').value.trim().slice(0, 20);
+  const code = normalizeCode($('code').value);
+  if (!name) { toast('先起个名字吧'); $('nick').focus(); return; }
+  if (code.length < 4) { toast('房间码不对'); $('code').focus(); return; }
+  store('lt.nick', name); store('lt.code', code);
+  // iPhone 要求声音得由一次点击开始：先在点击里把播放器“解锁”
+  unlockAudio();
+  $('joinBtn').disabled = true; $('joinBtn').textContent = '正在进入…';
+  try {
+    S.name = name; S.code = code; S.myId = S.clientId + '-' + rand(4); S.joinedAt = Date.now();
+    S.crypto = await roomCrypto(code); S.base = 'ltapp/v1/' + S.crypto.topicId;
+    const entry = await findRoom(S.base);
+    if (!entry) throw new Error('连不上同步服务器，检查一下网络');
+    S.mqtt = entry.client; S.broker = entry.url;
+    entry.handler = onMessage; entry.onClose = () => reconnect();
+    entry.buffer.forEach(([t, p]) => onMessage(t, p));
+    entry.buffer = [];
+    await publishPresence();
+    pingBurst();
+    showRoom();
+  } catch (e) {
+    toast(e.message || '进不去房间');
+  } finally {
+    $('joinBtn').disabled = false; $('joinBtn').textContent = '进入房间';
+  }
+}
+
+let reconnecting = false;
+async function reconnect() {
+  if (S.leaving || reconnecting) return;
+  reconnecting = true; renderStatus('网络断开了，正在重新连接…');
+  for (let attempt = 0; !S.leaving; attempt++) {
+    await new Promise(r => setTimeout(r, Math.min(8000, 1000 * (attempt + 1))));
+    const client = new Mqtt(S.broker, 'ltw-' + S.myId + '-' + rand(3), {
+      will: { topic: S.base + '/m/' + S.myId, payload: new Uint8Array(0), retain: true },
+      onMessage: (t, p) => onMessage(t, p), onClose: () => { reconnecting = false; reconnect(); },
+    });
+    try {
+      await client.connect();
+      S.mqtt = client;
+      client.subscribe([S.base + '/state', S.base + '/queue', S.base + '/bus', S.base + '/m/+', S.base + '/bg']);
+      await publishPresence(); pingBurst();
+      reconnecting = false; renderStatus();
+      return;
+    } catch (e) { /* 再试 */ }
+  }
+  reconnecting = false;
+}
+
+async function leave() {
+  S.leaving = true;
+  try { S.mqtt.publish(S.base + '/m/' + S.myId, new Uint8Array(0), { qos: 1, retain: true }); } catch (e) {}
+  setTimeout(() => { try { S.mqtt.close(); } catch (e) {} location.reload(); }, 300);
+}
+
+/* ---------------- 播放：跟着房间走 ---------------- */
+const audio = $('player');
+function unlockAudio() {
+  if (S.unlocked) return;
+  // 一小段静音：在用户点击里播一下，之后就能自动播放了
+  audio.src = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YQAAAAA=';
+  const p = audio.play();
+  if (p && p.then) p.then(() => { audio.pause(); S.unlocked = true; }).catch(() => {});
+  else S.unlocked = true;
+}
+function desiredUrl(pb) {
+  const t = pb.track; if (!t) return null;
+  if (t.source === 'netease' || t.source === 'qq') return pb.url ? https(pb.url) : null;
+  if (t.source === 'url' && !t.video) return https(t.id);
+  return null;
+}
+function syncPlayer() {
+  const pb = S.playback;
+  if (!pb || !pb.track) { if (S.loadedKey) { audio.pause(); audio.removeAttribute('src'); audio.load(); S.loadedKey = ''; S.loadedUrl = ''; } return; }
+  const url = desiredUrl(pb);
+  if (!url) { if (!audio.paused) audio.pause(); return; }
+  if (S.loadedKey !== pb.track.key || S.loadedUrl !== url) { S.loadedKey = pb.track.key; S.loadedUrl = url; audio.src = url; audio.load(); }
+  const exp = expected(pb);
+  if (exp === null) return;
+  const play = !pb.paused && !pb.loading && !pb.error && !waiting(pb);
+  const cur = audio.currentTime * 1000;
+  if (!play) {
+    if (!audio.paused) audio.pause();
+    if (audio.readyState >= 1 && Math.abs(cur - exp) > 400) audio.currentTime = exp / 1000;
+    return;
+  }
+  if (audio.paused) {
+    if (audio.readyState >= 1 && Math.abs(cur - exp) > 400) audio.currentTime = exp / 1000;
+    const p = audio.play();
+    if (p && p.catch) p.catch(() => { $('tapToPlay').hidden = false; });
+    return;
+  }
+  $('tapToPlay').hidden = true;
+  // 歌曲保持原速；差得多了才跳一下（和安卓版一样）
+  if (audio.readyState >= 2 && Math.abs(cur - exp) > 1200 && now() - S.lastSeek > 6000) { audio.currentTime = (exp + 300) / 1000; S.lastSeek = now(); }
+}
+setInterval(() => { try { syncPlayer(); renderProgress(); renderLyrics(); renderFullLyrics(); updateMediaPosition(); } catch (e) {} }, 250);
+setInterval(() => { try { renderSleep(); renderTop(); } catch (e) {} }, 1000);
+// 网络慢、在缓冲：显示“缓冲中…”
+S.buffering = false;
+['waiting', 'stalled'].forEach(ev => audio.addEventListener(ev, () => { S.buffering = true; }));
+['playing', 'canplaythrough', 'pause'].forEach(ev => audio.addEventListener(ev, () => { S.buffering = false; }));
+setInterval(() => { if (S.mqtt && S.mqtt.connected) { publishPresence(); ping(); } }, 30000);
+document.addEventListener('visibilitychange', () => {
+  // 从后台回来：iPhone 可能把连接断了，重新连上并对时
+  if (document.visibilityState === 'visible' && S.mqtt) { if (!S.mqtt.connected) reconnect(); else pingBurst(); }
+});
+
+/* ---------------- 歌词 ---------------- */
+function parseLrc(text) {
+  const out = [];
+  (text || '').split(/\r?\n/).forEach(line => {
+    const tags = [...line.matchAll(/\[(\d+):(\d+(?:\.\d+)?)\]/g)];
+    const words = line.replace(/\[[^\]]*\]/g, '').trim();
+    tags.forEach(t => out.push({ t: (parseInt(t[1]) * 60 + parseFloat(t[2])) * 1000, s: words }));
+  });
+  return out.sort((a, b) => a.t - b.t);
+}
+function parseLyrics(o) {
+  const lines = parseLrc(o.lrc).filter(l => l.s);
+  const tr = parseLrc(o.translation);
+  lines.forEach(l => { const m = tr.find(x => Math.abs(x.t - l.t) < 300 && x.s); if (m) l.tr = m.s; });
+  lines.auto = !!o.auto; // 翻译是机器翻的（歌本来没有翻译）
+  return lines;
+}
+/** 现在唱到第几句。 */
+function lyricIndex(lines, pos) { let i = lines.findIndex(l => l.t > pos) - 1; if (i < -1) i = lines.length - 1; return Math.max(0, i); }
+
+/* ---------------- 界面 ---------------- */
+function showRoom() {
+  $('join').hidden = true; $('room').hidden = false;
+  history.replaceState(null, '', '?room=' + displayCode(S.code));
+  renderTop(); renderSong(); renderQueue(); renderMembers(); renderStatus(); renderMode(); renderSleep(); renderRecent(); updateMediaSession();
+}
+function others() { return Object.values(S.members).filter(m => m.id !== S.myId); }
+function avatarEl(m) {
+  const av = document.createElement('div'); av.className = 'avatar';
+  // 头像是一小张 JPEG 的 Base64（高清版有前缀时只取后面的预览）
+  const raw = (m.avatar || '').replace(/^ltavatar:[0-9a-f]{64}:/, '');
+  if (raw && /^[A-Za-z0-9+/=]+$/.test(raw) && raw.length < 30000) av.style.backgroundImage = `url(data:image/jpeg;base64,${raw})`;
+  else av.textContent = (m.name || '?').slice(0, 1);
+  return av;
+}
+/** 已经一起多久：从后进来的那个人算起（时间对不上时不显示）。 */
+function togetherText(o) {
+  if (o.length !== 1 || !o[0].joinedAt) return '';
+  const ms = Date.now() - Math.max(S.joinedAt, o[0].joinedAt), min = Math.floor(ms / 60000);
+  if (ms < -300000 || min > 48 * 60) return '';
+  return min < 1 ? '刚刚到齐' : min < 60 ? `已经一起 ${min} 分钟` : `已经一起 ${Math.floor(min / 60)} 小时 ${min % 60} 分`;
+}
+function renderTop() {
+  const o = others();
+  $('roomTitle').textContent = o.length === 1 ? `和 ${o[0].name} 一起听` : o.length ? `${o.length + 1} 个人一起听` : '等 TA 来一起听…';
+  $('roomSub').textContent = [togetherText(o) || '房间 ' + displayCode(S.code), '网页版'].join(' · ');
+  const avs = $('avs'); avs.textContent = '';
+  o.slice(0, 3).forEach(m => avs.append(avatarEl(m)));
+}
+function renderSong() {
+  const t = S.playback && S.playback.track;
+  $('song').textContent = t ? t.title : '还没有歌';
+  $('artist').textContent = t ? [t.artist, t.album].filter(Boolean).join(' · ') : '去「点歌」加几首吧';
+  const img = t && safeImg(t.cover);
+  $('cover').style.backgroundImage = img ? `url("${img}")` : '';
+  $('cover').textContent = img ? '' : '♪';
+  if (img) $('backdrop').style.backgroundImage = `url("${img}")`;
+  const tags = $('tags'); tags.textContent = '';
+  if (t) {
+    const src = document.createElement('span'); src.className = 'tag src';
+    src.textContent = { netease: '网易云', qq: 'QQ 音乐', bilibili: 'B 站', url: '链接' }[t.source] || t.source; tags.append(src);
+    if (t.addedBy) { const by = document.createElement('span'); by.className = 'tag'; by.textContent = t.addedBy + ' 点的'; tags.append(by); }
+  }
+  renderTop();
+}
+function renderStatus(force) {
+  const pb = S.playback; let text = force || (reconnecting ? '网络断开了，正在重新连接…' : '');
+  if (!text && pb) {
+    if (pb.kind === 'video') text = '这是观影房：网页版只支持一起听，可以先聊天';
+    else if (pb.track && pb.track.video) text = '这是视频，网页版只支持一起听';
+    else if (pb.loading) text = '正在获取播放地址…';
+    else if (pb.error) text = '无法播放：' + pb.error;
+    else if (pb.track && hostNow() === null && !pb.paused) text = '正在和房主对时…';
+    else if (S.buffering && !pb.paused) text = '缓冲中…';
+  }
+  if (!text && !Object.values(S.members).some(m => !m.web && m.id !== S.myId)) text = '房间里还没有安卓手机：点歌、播放要等 TA 进来';
+  $('status').textContent = text;
+}
+function renderPlayButton() { const pb = S.playback; $('playBtn').textContent = pb && !pb.paused && !pb.loading ? '❚❚' : '▶'; }
+function duration() { const t = S.playback && S.playback.track; const d = audio.duration; return isFinite(d) && d > 0 ? d * 1000 : (t ? t.durationMs || 0 : 0); }
+let dragFrac = null;
+function renderProgress() {
+  const pb = S.playback; const d = duration();
+  const pos = dragFrac !== null ? dragFrac * d : pb && pb.track ? (expected(pb) ?? 0) : 0;
+  const f = d > 0 ? Math.min(1, pos / d) : 0;
+  $('fill').style.width = (f * 100) + '%'; $('knob').style.left = (f * 100) + '%';
+  $('pos').textContent = fmt(pos); $('dur').textContent = fmt(d);
+  renderPlayButton();
+  if (Math.random() < 0.1) renderStatus();
+}
+function renderLyrics() {
+  const pb = S.playback, box = $('lyrics');
+  const lines = pb && pb.track ? S.lyrics[pb.track.key] : null;
+  if (!lines || !lines.length) { if (box.dataset.k !== 'none') { box.dataset.k = 'none'; box.innerHTML = ''; const l = document.createElement('div'); l.className = 'line'; l.style.marginTop = '30px'; l.textContent = pb && pb.track ? '歌词由房间里的安卓手机获取…' : ''; box.append(l); } return; }
+  const pos = expected(pb) ?? 0;
+  let i = lines.findIndex(l => l.t > pos) - 1; if (i < -1) i = lines.length - 1; if (i < 0) i = 0;
+  const key = pb.track.key + ':' + i;
+  if (box.dataset.k === key) return;
+  box.dataset.k = key; box.textContent = '';
+  [lines[i - 1], lines[i], lines[i + 1]].forEach((l, j) => {
+    const div = document.createElement('div'); div.className = 'line' + (j === 1 ? ' now' : ''); div.textContent = l ? l.s : ''; box.append(div);
+    if (j === 1) { const tr = document.createElement('div'); tr.className = 'tr'; tr.textContent = l && l.tr ? l.tr : ''; box.append(tr); }
+  });
+}
+function addChat(item) {
+  if (item.id && S.chat.some(c => c.id === item.id)) return;
+  S.chat.push(item); if (S.chat.length > 300) S.chat.shift();
+  const list = $('chatList');
+  const near = list.scrollHeight - list.scrollTop - list.clientHeight < 80;
+  if (item.sys) { const d = document.createElement('div'); d.className = 'sys'; d.textContent = item.text; list.append(d); }
+  else {
+    const mine = item.from === S.myId;
+    const d = document.createElement('div'); d.className = 'msg' + (mine ? ' mine' : '');
+    if (!mine) { const w = document.createElement('div'); w.className = 'who'; w.textContent = item.name || 'TA'; d.append(w); }
+    const b = document.createElement('div'); b.className = 'bubble'; b.textContent = item.text; d.append(b); list.append(d);
+    if (!mine && S.tab !== 'chat') $('chatDot').hidden = false;
+  }
+  if (near || item.from === S.myId) list.scrollTop = list.scrollHeight;
+}
+function trackRow(t, actions, now, mini) {
+  const row = document.createElement('div'); row.className = 'row' + (now ? ' now' : '');
+  const th = document.createElement('div'); th.className = 'thumb'; const img = safeImg(t.cover); if (img) th.style.backgroundImage = `url("${img}")`;
+  const info = document.createElement('div'); info.className = 'info';
+  const a = document.createElement('div'); a.className = 'a'; a.textContent = (now ? '♫ ' : '') + t.title;
+  const b = document.createElement('div'); b.className = 'b'; b.textContent = [t.artist, t.addedBy ? t.addedBy + ' 点的' : ''].filter(Boolean).join(' · ');
+  info.append(a, b); row.append(th, info);
+  actions.forEach(([label, fn, main]) => {
+    const btn = document.createElement('button'); btn.className = mini ? 'mini' : 'act' + (main ? ' main' : ''); btn.textContent = label;
+    if (mini) btn.setAttribute('aria-label', { '⤴': '设为下一首', '↑': '上移', '✕': '移除' }[label] || label);
+    btn.onclick = e => { e.stopPropagation(); fn(); }; row.append(btn);
+  });
+  return row;
+}
+function renderQueue() {
+  const list = $('queueList'); list.textContent = '';
+  const pb = S.playback;
+  $('queueCount').textContent = `共 ${S.queue.length} 首`;
+  $('turnsBtn').classList.toggle('on', !!(pb && pb.turns));
+  $('turnsBtn').textContent = pb && pb.turns ? '轮流点歌 · 开' : '轮流点歌';
+  if (!S.queue.length) { const e = document.createElement('div'); e.className = 'empty'; e.textContent = '列表是空的，去「点歌」加几首吧'; list.append(e); return; }
+  const cur = pb && pb.track && pb.track.key;
+  const curIdx = S.queue.findIndex(t => t.key === cur);
+  S.queue.forEach((t, i) => {
+    const actions = [];
+    if (t.key !== cur) {
+      // 设为下一首：挪到正在放的那首后面（在它前面的话，拿走以后正在放的往前挪了一位）
+      if (curIdx >= 0 && i !== curIdx + 1) actions.push(['⤴', () => { cmd('move', { key: t.key, index: i < curIdx ? curIdx : curIdx + 1 }); toast('设为下一首：' + t.title); }]);
+      if (i > 0) actions.push(['↑', () => cmd('move', { key: t.key, index: i - 1 })]);
+    }
+    actions.push(['✕', () => removeTrack(t, i)]);
+    const row = trackRow(t, actions, t.key === cur, true);
+    row.onclick = () => cmd('playKey', { key: t.key });
+    list.append(row);
+  });
+}
+/** 删掉一首，5 秒内可以撤销（放回原来的位置）。 */
+let undoTimer;
+function removeTrack(t, index) {
+  cmd('remove', { key: t.key });
+  S.undo = { track: t, index };
+  $('undoText').textContent = '已移除《' + t.title + '》';
+  $('undoBar').hidden = false;
+  clearTimeout(undoTimer); undoTimer = setTimeout(() => { $('undoBar').hidden = true; S.undo = null; }, 5000);
+}
+function renderMembers() {
+  const list = $('memberList'); list.textContent = '';
+  const hostId = S.playback && S.playback.hostId;
+  Object.values(S.members).sort((a, b) => (a.joinedAt || 0) - (b.joinedAt || 0)).forEach(m => {
+    const row = document.createElement('div'); row.className = 'row';
+    const av = avatarEl(m);
+    const info = document.createElement('div'); info.className = 'info';
+    const a = document.createElement('div'); a.className = 'a'; a.textContent = m.name + (m.id === S.myId ? '（我）' : '');
+    if (m.id === hostId) { const bd = document.createElement('span'); bd.className = 'badge'; bd.textContent = '房主'; a.append(bd); }
+    if (m.web) { const bd = document.createElement('span'); bd.className = 'badge'; bd.textContent = '网页版'; a.append(bd); }
+    info.append(a); row.append(av, info); list.append(row);
+  });
+}
+function renderResults(tracks) {
+  const list = $('results'); list.textContent = '';
+  if (!tracks.length) { const e = document.createElement('div'); e.className = 'empty'; e.textContent = '没搜到，换个关键词或者换个平台试试'; list.append(e); return; }
+  tracks.forEach(t => {
+    const stamp = () => Object.assign({}, t, { key: rand(10), addedBy: S.name, adder: S.clientId });
+    const row = trackRow(t, [
+      ['下一首', () => { cmd('addNext', { tracks: [stamp()] }); toast('已设为下一首：' + t.title); }],
+      ['加入', () => { cmd('add', { tracks: [stamp()] }); toast('已加入：' + t.title); }, true],
+    ]);
+    // 点歌名：马上放这首
+    row.onclick = () => { unlockAudio(); cmd('playNow', { tracks: [stamp()] }); toast('开始播放：' + t.title); };
+    list.append(row);
+  });
+}
+function floatHeart(emoji) {
+  const h = document.createElement('div'); h.className = 'floating-heart'; h.textContent = emoji;
+  h.style.left = (20 + Math.random() * 60) + '%'; document.body.append(h); setTimeout(() => h.remove(), 2500);
+}
+
+/* ---------------- 播放模式、睡眠定时 ---------------- */
+const MODES = [['list', '🔁', '列表循环'], ['single', '🔂', '单曲循环'], ['shuffle', '🔀', '随机播放']];
+function renderMode() {
+  const mode = (S.playback && S.playback.mode) || 'list';
+  const m = MODES.find(x => x[0] === mode) || MODES[0];
+  $('modeBtn').innerHTML = ''; $('modeBtn').append(m[1], document.createElement('br'), m[2]);
+}
+function renderSleep() {
+  const pb = S.playback, btn = $('sleepBtn');
+  let label = '定时', on = false;
+  if (pb && pb.sleepAfterTrack) { label = '播完停'; on = true; }
+  else if (pb && pb.sleepAt > 0) {
+    const h = hostNow();
+    if (h !== null) { label = fmt(Math.max(0, pb.sleepAt - h)); on = true; }
+  }
+  btn.classList.toggle('on', on);
+  btn.innerHTML = ''; btn.append('☾', document.createElement('br'), label);
+  $('sleepCancel').hidden = !on;
+  $('sleepNote').textContent = on && pb.sleepBy ? `${pb.sleepBy} 设了定时；到点房间里大家一起停` : '到点房间里大家一起停，最后会慢慢变小声';
+}
+
+/* ---------------- 锁屏、控制中心：显示歌名封面，按键控制整个房间 ---------------- */
+const MS = 'mediaSession' in navigator ? navigator.mediaSession : null;
+if (MS) {
+  const act = (name, fn) => { try { MS.setActionHandler(name, fn); } catch (e) {} };
+  act('play', () => { unlockAudio(); cmd('play'); });
+  act('pause', () => cmd('pause'));
+  act('nexttrack', () => cmd('next'));
+  act('previoustrack', () => cmd('prev'));
+  act('seekto', d => { if (d && d.seekTime != null) cmd('seek', { pos: Math.round(d.seekTime * 1000) }); });
+}
+function updateMediaSession() {
+  if (!MS || !window.MediaMetadata) return;
+  const t = S.playback && S.playback.track;
+  if (!t) { MS.metadata = null; return; }
+  const img = safeImg(t.cover);
+  MS.metadata = new MediaMetadata({ title: t.title, artist: t.artist || '', album: t.album || '一起听看', artwork: img ? [{ src: img, sizes: '512x512' }] : [{ src: 'icon-512.png', sizes: '512x512', type: 'image/png' }] });
+}
+let lastPositionState = 0;
+function updateMediaPosition() {
+  if (!MS) return;
+  const pb = S.playback;
+  MS.playbackState = pb && pb.track ? (pb.paused ? 'paused' : 'playing') : 'none';
+  if (!MS.setPositionState || now() - lastPositionState < 1000 || !pb || !pb.track) return;
+  lastPositionState = now();
+  const d = duration(), pos = expected(pb);
+  if (d > 0 && pos != null) try { MS.setPositionState({ duration: d / 1000, position: Math.min(d, pos) / 1000, playbackRate: 1 }); } catch (e) {}
+}
+
+/* ---------------- 整页歌词 ---------------- */
+let lfKey = '', lfIndex = -1;
+function openLyrics() {
+  $('lyricsFull').hidden = false; lfKey = ''; lfIndex = -1;
+  $('lfTr').classList.toggle('on', store('lt.tr') !== '0');
+  renderFullLyrics();
+}
+function renderFullLyrics() {
+  if ($('lyricsFull').hidden) return;
+  const pb = S.playback, t = pb && pb.track, box = $('lfScroll');
+  const lines = t ? S.lyrics[t.key] : null;
+  const showTr = store('lt.tr') !== '0';
+  const key = (t ? t.key : '') + ':' + (lines ? lines.length : 0) + ':' + showTr;
+  if (key !== lfKey) {
+    lfKey = key; lfIndex = -1; box.textContent = '';
+    $('lfTitle').textContent = t ? t.title : '还没有歌';
+    $('lfArtist').textContent = t ? [t.artist, lines && lines.auto ? '翻译是机翻的' : ''].filter(Boolean).join(' · ') : '';
+    if (!lines || !lines.length) { const e = document.createElement('div'); e.className = 'lf-line'; e.textContent = t ? '歌词由房间里的安卓手机获取…' : ''; box.append(e); return; }
+    lines.forEach(l => {
+      const d = document.createElement('div'); d.className = 'lf-line'; d.textContent = l.s;
+      if (showTr && l.tr) { const s = document.createElement('span'); s.className = 'tr'; s.textContent = l.tr; d.append(s); }
+      box.append(d);
+    });
+  }
+  if (!lines || !lines.length) return;
+  const i = lyricIndex(lines, expected(pb) ?? 0);
+  if (i === lfIndex) return;
+  const rows = box.children;
+  if (rows[lfIndex]) rows[lfIndex].classList.remove('now');
+  if (rows[i]) { rows[i].classList.add('now'); rows[i].scrollIntoView({ block: 'center', behavior: lfIndex < 0 ? 'auto' : 'smooth' }); }
+  lfIndex = i;
+}
+
+/* ---------------- 最近搜过 ---------------- */
+function recentSearches() { try { return JSON.parse(store('lt.recent') || '[]'); } catch (e) { return []; } }
+function rememberSearch(q) { store('lt.recent', JSON.stringify([q, ...recentSearches().filter(x => x !== q)].slice(0, 8))); renderRecent(); }
+function renderRecent() {
+  const box = $('recent'); box.textContent = '';
+  recentSearches().forEach(q => { const b = document.createElement('button'); b.textContent = q; b.onclick = () => { $('searchInput').value = q; search(); }; box.append(b); });
+}
+
+/* ---------------- 交互 ---------------- */
+$('nick').value = store('lt.nick') || '';
+$('code').value = displayCode(new URLSearchParams(location.search).get('room') || store('lt.code') || '');
+$('code').addEventListener('input', e => { const n = normalizeCode(e.target.value).slice(0, 8); e.target.value = n.length > 4 ? n.slice(0, 4) + '-' + n.slice(4) : n; });
+$('joinBtn').onclick = join;
+$('code').addEventListener('keydown', e => { if (e.key === 'Enter') join(); });
+$('leaveBtn').onclick = () => { if (confirm('离开房间？')) leave(); };
+$('playBtn').onclick = () => { unlockAudio(); const pb = S.playback; cmd(pb && !pb.paused && !pb.loading ? 'pause' : 'play'); };
+$('prevBtn').onclick = () => cmd('prev');
+$('nextBtn').onclick = () => cmd('next');
+$('tapToPlay').onclick = () => { $('tapToPlay').hidden = true; audio.play().catch(() => {}); };
+$('heartBtn').onclick = () => { floatHeart('❤️'); bus({ type: 'react', text: '❤️', id: rand(8) }); };
+function sendChat() { const v = $('chatInput').value.trim(); if (!v) return; $('chatInput').value = ''; bus({ type: 'chat', text: v.slice(0, 200), id: rand(8) }); }
+$('sendBtn').onclick = sendChat;
+$('chatInput').addEventListener('keydown', e => { if (e.key === 'Enter') sendChat(); });
+function search() {
+  const q = $('searchInput').value.trim(); if (!q) return;
+  if (!Object.values(S.members).some(m => !m.web && m.id !== S.myId)) { toast('房间里要有安卓手机才能搜歌'); return; }
+  S.searchId = rand(8);
+  const list = $('results'); list.textContent = ''; const e = document.createElement('div'); e.className = 'empty'; e.textContent = '正在请房主那边搜索…'; list.append(e);
+  bus({ type: 'search', id: S.searchId, key: S.source, text: q });
+  rememberSearch(q);
+  const id = S.searchId;
+  setTimeout(() => { if (S.searchId === id && $('results').querySelector('.empty')) $('results').querySelector('.empty').textContent = '房主那边没有回应，稍后再试'; }, 12000);
+}
+$('modeBtn').onclick = () => {
+  const mode = (S.playback && S.playback.mode) || 'list';
+  const next = MODES[(MODES.findIndex(x => x[0] === mode) + 1) % MODES.length];
+  cmd('mode', { text: next[0] }); toast(next[2]);
+};
+$('sleepBtn').onclick = () => { renderSleep(); $('sleepSheet').hidden = false; };
+$('sleepSheet').addEventListener('click', e => {
+  if (e.target === $('sleepSheet') || e.target.id === 'sleepClose') { $('sleepSheet').hidden = true; return; }
+  const b = e.target.closest('button[data-min]'); if (!b) return;
+  const min = parseInt(b.dataset.min, 10);
+  // 和安卓一样：pos = 毫秒；-1 = 播完这首；0 = 取消
+  cmd('sleep', { pos: min > 0 ? min * 60000 : min });
+  $('sleepSheet').hidden = true;
+  toast(min > 0 ? `${min} 分钟后大家一起停` : min < 0 ? '播完这首就一起停' : '已取消定时');
+});
+$('turnsBtn').onclick = () => { const on = !(S.playback && S.playback.turns); cmd('turns', { text: on ? '1' : '0' }); toast(on ? '轮流点歌：你一首、我一首' : '已关闭轮流点歌'); };
+$('clearBtn').onclick = () => { if (S.queue.length && confirm('清空播放列表？')) cmd('clear'); };
+$('undoBtn').onclick = () => {
+  if (!S.undo) return;
+  // 放回原来的位置（同一首歌，重复点也只会回来一次）
+  cmd('add', { tracks: [S.undo.track], index: S.undo.index });
+  S.undo = null; $('undoBar').hidden = true;
+};
+$('lyrics').onclick = openLyrics;
+$('lfClose').onclick = () => { $('lyricsFull').hidden = true; };
+$('lfTr').onclick = () => { store('lt.tr', store('lt.tr') === '0' ? '1' : '0'); $('lfTr').classList.toggle('on', store('lt.tr') !== '0'); renderFullLyrics(); };
+$('searchBtn').onclick = search;
+$('searchInput').addEventListener('keydown', e => { if (e.key === 'Enter') search(); });
+$('srcPick').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; S.source = b.dataset.src; $('srcPick').querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); });
+document.querySelector('.tabs').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  S.tab = b.dataset.tab;
+  document.querySelectorAll('.tabs button').forEach(x => x.classList.toggle('on', x === b));
+  document.querySelectorAll('.page').forEach(p => p.hidden = p.dataset.page !== S.tab);
+  if (S.tab === 'chat') { $('chatDot').hidden = true; const l = $('chatList'); l.scrollTop = l.scrollHeight; }
+});
+// 拖进度条：松手才跳（大家一起跳）
+(() => {
+  const bar = $('bar');
+  const frac = e => { const r = bar.getBoundingClientRect(); return Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)); };
+  bar.addEventListener('pointerdown', e => { if (!S.playback || !S.playback.track) return; bar.setPointerCapture(e.pointerId); dragFrac = frac(e); renderProgress(); });
+  bar.addEventListener('pointermove', e => { if (dragFrac !== null) { dragFrac = frac(e); renderProgress(); } });
+  bar.addEventListener('pointerup', e => { if (dragFrac === null) return; const d = duration(); if (d > 0) cmd('seek', { pos: Math.round(dragFrac * d) }); dragFrac = null; });
+  bar.addEventListener('pointercancel', () => { dragFrac = null; });
+})();
+window.addEventListener('pagehide', () => { if (S.mqtt && !S.leaving) try { S.mqtt.publish(S.base + '/m/' + S.myId, new Uint8Array(0), { qos: 1, retain: true }); } catch (e) {} });
+// 离线缓存（见 sw.js）：只在 https 网址或本机调试时启用
+if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+}
+</script>
+</body>
+</html>

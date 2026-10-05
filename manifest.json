@@ -1,0 +1,12 @@
+{
+  "name": "一起听看",
+  "short_name": "一起听看",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#1D171C",
+  "theme_color": "#1D171C",
+  "icons": [
+    { "src": "icon.png", "sizes": "180x180", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
